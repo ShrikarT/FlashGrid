@@ -1,47 +1,81 @@
-# BlockIntel - Crypto Intelligence Platform
+# BlockIntel — Crypto Intelligence Platform
 
-A prototype crypto intelligence platform for analyzing blockchain addresses and detecting illicit activities.
+A crypto intelligence platform for investigators and compliance teams to analyze blockchain addresses, surface illicit-activity risk signals, and manage investigation cases — built at Smart India Hackathon.
+
+BlockIntel enriches wallet addresses with third-party intelligence (Nansen) and AI-driven risk classification (Gemini), then visualizes the results as an interactive network graph so analysts can trace fund flows and connections between flagged addresses.
 
 ## Features
-- Real-time address analysis with AI-powered classification
-- Integration with Nansen API for enhanced address labeling  
-- Gemini AI for intelligent threat assessment
-- Interactive network graph visualization
-- Case management and investigation tracking
-- Professional dashboard with advanced analytics
 
-## Setup Instructions
+- **Address risk analysis** — look up any address and get an enriched profile: labels, tags, transaction history, and an AI-generated risk assessment
+- **AI-powered classification** — Gemini-based scoring flags suspicious patterns and explains its reasoning in plain language
+- **Nansen enrichment** — pulls entity labels and wallet intelligence for known addresses
+- **Interactive network graph** — visualize how addresses connect to each other (`react-force-graph-2d`) instead of reading raw transaction lists
+- **Case management** — group flagged addresses into investigations and track them over time
+- **Data export** — pull results out as JSON or CSV for reporting
+- **Mock-safe fallback** — runs fully offline against seed data when API keys aren't configured, so the whole flow is demoable without live credentials
 
-### Backend:
-1. `cd backend`
-2. `pip install -r requirements.txt`
-3. Copy `.env.example` to `.env` and fill in API keys and URLs (leave empty to use mock fallback)
-4. `uvicorn main:app --reload --port 8000`
+## Architecture
 
-### Frontend:
-1. `cd frontend`
-2. `npm install`
-3. `npm run dev`
-4. Optional: Create `frontend/.env.local` and set `VITE_API_BASE_URL=http://localhost:8000`
+```
+blockintel/
+├── frontend/          # React + Vite + Tailwind dashboard
+│   └── src/
+│       ├── components/  # Dashboard, NetworkGraph, CaseManagement, AddressDetail, ...
+│       └── app/          # routing entry points
+├── backend/
+│   ├── main.py          # FastAPI backend (primary — serves the built frontend too)
+│   ├── server.js         # Express backend (alternate/legacy API surface)
+│   ├── services/          # Nansen + Gemini client wrappers, JSON-file store
+│   ├── data/                # seed address dataset
+│   └── seed/                  # seed scripts
+└── build-and-deploy.ps1     # builds frontend and copies it into backend/static
+```
 
-## API Configuration
-- **NANSEN_API_URL**: Replace with actual Nansen API endpoint for address labels
-- **GEMINI_API_URL**: Replace with official Gemini Generative AI endpoint and auth method
+> Note: there are currently two parallel backend implementations (FastAPI in `main.py` and Express in `server.js`) covering overlapping endpoints. `main.py` is the primary one — it also serves the built frontend as static files. The Express server predates it; consolidating onto one is on the cleanup list.
 
-### Build and serve frontend from backend (optional)
-1. From workspace root: `./build-and-deploy.ps1`
-2. This runs `frontend npm run build:deploy` and copies the built assets to `backend/static`.
-3. Then FastAPI serves the app at `http://127.0.0.1:8000`.
+## Tech Stack
 
-## Notes
-- Nansen: Update `NANSEN_API_URL` with the correct endpoint that returns labels for an address
-- Gemini: Update `GEMINI_API_URL` and payload format with official Generative AI endpoint and authentication method
-- The sample payload in `backend/main.py` is intentionally generic to be adapted to your provider's specifications
+| Layer | Stack |
+|---|---|
+| Frontend | React 18, Vite, Tailwind CSS, React Router, Recharts, react-force-graph-2d |
+| Backend (primary) | FastAPI (Python), served via Uvicorn |
+| Backend (alternate) | Express (Node), Helmet, CORS |
+| Intelligence sources | Nansen API (address labeling), Google Gemini (AI risk classification) |
+| Data | Local JSON store (`backend/data/addresses.json`) — no external DB required |
 
-## Endpoints (FastAPI mode)
-- `GET /addresses` → list addresses
-- `GET /address/{addr}` → enriched details
-- `GET /graph/{addr}` → simple star graph for the address
-- `GET /export/json`, `GET /export/csv` → exports
+## Setup
 
+### Backend (FastAPI — recommended)
+```bash
+cd backend
+pip install -r requirements.txt
+cp .env.example .env   # fill in NANSEN_API_KEY / GEMINI_API_KEY, or leave blank for mock mode
+uvicorn main:app --reload --port 8000
+```
+
+### Frontend
+```bash
+cd frontend
+npm install
+npm run dev
+# optional: create frontend/.env.local with VITE_API_BASE_URL=http://localhost:8000
+```
+
+### Build frontend into the backend (single-server deploy)
+```bash
+./build-and-deploy.ps1
+# builds the frontend and copies dist/ into backend/static — FastAPI then serves everything from :8000
+```
+
+## API Reference (FastAPI, `backend/main.py`)
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/addresses` | List all addresses in the dataset |
+| GET | `/address/{addr}` | Enriched detail for a single address (Nansen + Gemini) |
+| GET | `/graph/{addr}` | Star-graph edges centered on an address, for the network view |
+| GET | `/export/json` | Export the full dataset as JSON |
+| GET | `/export/csv` | Export the full dataset as CSV |
+
+`NANSEN_API_URL` and `GEMINI_API_URL` are placeholders in `.env.example` — point them at the real provider endpoints per their docs. If either key/URL is left blank, calls fall back to the local mock dataset so the app stays fully functional in a demo setting.
 
